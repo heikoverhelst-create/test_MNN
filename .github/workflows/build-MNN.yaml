@@ -1,0 +1,70 @@
+name: Build MNN LLM demo
+
+on:
+  workflow_dispatch:   # Run manually from Actions tab
+  push:
+    branches: [ main ]
+  # Optional: run on release or tag
+  # release:
+  #   types: [ published ]
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ windows-latest, ubuntu-latest, macos-latest ]
+
+    steps:
+      - name: Clone MNN
+        uses: actions/checkout@v4
+        with:
+          repository: alibaba/MNN
+          path: MNN
+
+      - name: Configure and build (Windows)
+        if: matrix.os == 'windows-latest'
+        working-directory: MNN
+        run: |
+          mkdir build
+          cd build
+          cmake .. -G "Visual Studio 17 2022" -A x64 `
+            -DMNN_LOW_MEMORY=ON `
+            -DMNN_CPU_WEIGHT_DEQUANT_GEMM=ON `
+            -DMNN_BUILD_LLM=ON `
+            -DMNN_SUPPORT_TRANSFORMER_FUSE=ON
+          cmake --build . --config Release
+
+      - name: Configure and build (Linux / macOS)
+        if: matrix.os != 'windows-latest'
+        working-directory: MNN
+        run: |
+          mkdir build
+          cd build
+          cmake .. \
+            -DMNN_LOW_MEMORY=ON \
+            -DMNN_CPU_WEIGHT_DEQUANT_GEMM=ON \
+            -DMNN_BUILD_LLM=ON \
+            -DMNN_SUPPORT_TRANSFORMER_FUSE=ON
+          make -j$(nproc 2>/dev/null || sysctl -n hw.ncpu)
+
+      - name: Collect Windows artifact
+        if: matrix.os == 'windows-latest'
+        run: |
+          mkdir -p staging
+          cp MNN/build/Release/llm_demo.exe staging/
+          # Optional: copy any required DLLs if the exe is not self-contained
+          # cp MNN/build/Release/*.dll staging/
+
+      - name: Collect Linux/macOS artifact
+        if: matrix.os != 'windows-latest'
+        run: |
+          mkdir -p staging
+          cp MNN/build/llm_demo staging/
+
+      - name: Upload llm_demo
+        uses: actions/upload-artifact@v4
+        with:
+          name: mnn-llm_demo-${{ matrix.os }}
+          path: staging/
