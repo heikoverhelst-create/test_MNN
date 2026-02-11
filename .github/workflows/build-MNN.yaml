@@ -54,8 +54,8 @@ jobs:
         run: |
           mkdir -p staging
           cp MNN/build/Release/llm_demo.exe staging/
-          # Optional: copy any required DLLs if the exe is not self-contained
-          # cp MNN/build/Release/*.dll staging/
+          # Copy required DLLs (e.g. MNN.dll) so llm_demo.exe can find them at runtime
+          Get-ChildItem MNN/build/Release/*.dll -ErrorAction SilentlyContinue | Copy-Item -Destination staging/
 
       - name: Collect Linux/macOS artifact
         if: matrix.os != 'windows-latest'
